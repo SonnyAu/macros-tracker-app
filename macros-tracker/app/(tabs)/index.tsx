@@ -1,74 +1,66 @@
-import { Image, StyleSheet, Platform } from 'react-native';
-
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import { View, Text, TouchableOpacity } from "react-native";
 
 export default function HomeScreen() {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View className="flex-1 bg-gray-100 p-5 justify-center">
+      {/* Header */}
+      <View className="mb-8 items-center">
+        <Text className="text-3xl font-bold text-gray-900">Welcome Back!</Text>
+        <Text className="text-lg text-gray-600 text-center">
+          Track your meals & stay on top of your macros
+        </Text>
+      </View>
+
+      {/* Macro Overview */}
+      <View className="bg-white rounded-xl p-6 shadow-md mb-8 mx-4">
+        <Text className="text-lg font-semibold text-gray-700 mb-4 text-center">
+          Today's Macros
+        </Text>
+        <View className="flex-row justify-around">
+          <View className="items-center">
+            <Text className="text-2xl">🔥</Text>
+            <Text className="text-gray-600">Calories</Text>
+            <Text className="text-xl font-bold">1,800 kcal</Text>
+          </View>
+
+          <View className="items-center">
+            <Text className="text-2xl">🥩</Text>
+            <Text className="text-gray-600">Protein</Text>
+            <Text className="text-xl font-bold">120g</Text>
+          </View>
+
+          <View className="items-center">
+            <Text className="text-2xl">🍞</Text>
+            <Text className="text-gray-600">Carbs</Text>
+            <Text className="text-xl font-bold">250g</Text>
+          </View>
+
+          <View className="items-center">
+            <Text className="text-2xl">🧈</Text>
+            <Text className="text-gray-600">Fats</Text>
+            <Text className="text-xl font-bold">70g</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Quick Actions */}
+      <View className="space-y-4 mx-4">
+        <TouchableOpacity className="bg-blue-500 rounded-xl p-4 items-center">
+          <Text className="text-white text-lg font-semibold">
+            📷 Take a Picture
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity className="bg-green-500 rounded-xl p-4 items-center">
+          <Text className="text-white text-lg font-semibold">🍽️ Log Meal</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity className="bg-gray-800 rounded-xl p-4 items-center">
+          <Text className="text-white text-lg font-semibold">
+            📜 View History
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
