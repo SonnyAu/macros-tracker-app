@@ -1,19 +1,109 @@
-import { View, Text, TouchableOpacity } from "react-native";
-import { useLocalSearchParams, router } from "expo-router";
-import { Svg, Circle } from "react-native-svg";
+import { View, Text, ScrollView } from "react-native";
+import { useLocalSearchParams } from "expo-router";
+import { format } from "date-fns";
+import { Svg, Circle, G } from "react-native-svg";
+
+interface MacroData {
+  protein: number;
+  carbs: number;
+  fats: number;
+  sugar: number;
+}
+
+function MacroRings({
+  macros,
+  goals,
+}: {
+  macros: MacroData;
+  goals: MacroData;
+}) {
+  // Calculate the circumference of each ring
+  const calculateCircumference = (radius: number) => 2 * Math.PI * radius;
+
+  // Define the rings configuration
+  const rings = [
+    { macro: "protein", color: "#FF3B30", radius: 100 },
+    { macro: "carbs", color: "#5856D6", radius: 85 },
+    { macro: "fats", color: "#FF9500", radius: 70 },
+    { macro: "sugar", color: "#34C759", radius: 55 },
+  ] as const;
+
+  return (
+    <View style={{ alignItems: "center", marginVertical: 20 }}>
+      <Svg width={220} height={220} viewBox="-110 -110 220 220">
+        {rings.map(({ macro, color, radius }) => {
+          const circumference = calculateCircumference(radius);
+          const progress =
+            macros[macro as keyof MacroData] / goals[macro as keyof MacroData];
+          const strokeDashoffset = circumference * (1 - Math.min(progress, 1));
+
+          return (
+            <G key={macro}>
+              <Circle
+                r={radius}
+                fill="none"
+                stroke="#E5E5EA"
+                strokeWidth={10}
+              />
+              <Circle
+                r={radius}
+                fill="none"
+                stroke={color}
+                strokeWidth={10}
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                transform="rotate(-90)"
+                strokeLinecap="round"
+              />
+            </G>
+          );
+        })}
+      </Svg>
+      <View style={{ marginTop: 20 }}>
+        {rings.map(({ macro, color }) => (
+          <View
+            key={macro}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginVertical: 5,
+            }}
+          >
+            <View
+              style={{
+                width: 12,
+                height: 12,
+                backgroundColor: color,
+                borderRadius: 6,
+                marginRight: 8,
+              }}
+            />
+            <Text style={{ fontSize: 16 }}>
+              {macro.charAt(0).toUpperCase() + macro.slice(1)}:{" "}
+              {macros[macro as keyof MacroData]}g /{" "}
+              {goals[macro as keyof MacroData]}g
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
 
 export default function DayMacrosScreen() {
-  const { date } = useLocalSearchParams(); // Get the date from the URL
+  const { date } = useLocalSearchParams();
+  const formattedDate = date
+    ? format(new Date(date as string), "MMMM d, yyyy")
+    : "";
 
-  // Mock macro data for the selected day
+  // Mock data for the selected day
   const macros = {
-    protein: 120, // in grams
+    protein: 120,
     carbs: 250,
     fats: 70,
     sugar: 30,
   };
 
-  // Total Daily Goals (Adjust as needed)
   const goals = {
     protein: 150,
     carbs: 300,
@@ -22,81 +112,23 @@ export default function DayMacrosScreen() {
   };
 
   return (
-    <View className="flex-1 bg-gray-100 p-5 items-center">
-      <Text className="text-2xl font-bold text-center mb-4">
-        📆 Macros for {date}
+    <ScrollView style={{ flex: 1, backgroundColor: "#F2F2F7" }}>
+      {/* Date Header */}
+      <Text
+        style={{
+          fontSize: 22,
+          fontWeight: "600",
+          textAlign: "center",
+          marginVertical: 16,
+        }}
+      >
+        {formattedDate}
       </Text>
 
-      {/* Macro Fitness Wheel */}
-      <Svg height="200" width="200" viewBox="0 0 100 100">
-        {/* Background Circle */}
-        <Circle
-          cx="50"
-          cy="50"
-          r="40"
-          stroke="#E5E5E5"
-          strokeWidth="10"
-          fill="none"
-        />
-
-        {/* Protein Progress */}
-        <Circle
-          cx="50"
-          cy="50"
-          r="40"
-          stroke="#FF3B30"
-          strokeWidth="10"
-          fill="none"
-          strokeDasharray="251.2"
-          strokeDashoffset={(1 - macros.protein / goals.protein) * 251.2}
-        />
-
-        {/* Carbs Progress */}
-        <Circle
-          cx="50"
-          cy="50"
-          r="35"
-          stroke="#FF9500"
-          strokeWidth="10"
-          fill="none"
-          strokeDasharray="219.9"
-          strokeDashoffset={(1 - macros.carbs / goals.carbs) * 219.9}
-        />
-
-        {/* Fats Progress */}
-        <Circle
-          cx="50"
-          cy="50"
-          r="30"
-          stroke="#4CD964"
-          strokeWidth="10"
-          fill="none"
-          strokeDasharray="188.4"
-          strokeDashoffset={(1 - macros.fats / goals.fats) * 188.4}
-        />
-
-        {/* Sugar Progress */}
-        <Circle
-          cx="50"
-          cy="50"
-          r="25"
-          stroke="#007AFF"
-          strokeWidth="10"
-          fill="none"
-          strokeDasharray="157.1"
-          strokeDashoffset={(1 - macros.sugar / goals.sugar) * 157.1}
-        />
-      </Svg>
-
-      {/* Button to Go Back */}
-      <TouchableOpacity
-        className="bg-red-500 rounded-xl p-4 mt-5 items-center"
-        onPress={() => router.back()}
-      >
-        <Text className="text-white text-lg font-semibold">
-          🔙 Back to Weekly View
-        </Text>
-      </TouchableOpacity>
-    </View>
+      {/* Activity Rings */}
+      <View style={{ backgroundColor: "white", marginBottom: 20 }}>
+        <MacroRings macros={macros} goals={goals} />
+      </View>
+    </ScrollView>
   );
 }

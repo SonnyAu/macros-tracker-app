@@ -1,38 +1,121 @@
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
-import { router } from "expo-router";
+import { Link } from "expo-router";
 import { useState } from "react";
 import { format, addDays, startOfWeek } from "date-fns";
 import { ProgressBar } from "react-native-paper";
-import { Svg, Circle } from "react-native-svg";
+import { Svg, Circle, G } from "react-native-svg";
 
-export default function MacrosScreen() {
+interface MacroData {
+  protein: number;
+  carbs: number;
+  fats: number;
+  sugar: number;
+}
+
+interface MacroRingsProps {
+  macros: MacroData;
+  goals: MacroData;
+}
+
+function MacroRings({ macros, goals }: MacroRingsProps) {
+  // Calculate the circumference of each ring
+  const calculateCircumference = (radius: number) => 2 * Math.PI * radius;
+
+  // Define the rings configuration
+  const rings = [
+    { macro: "protein", color: "#FF3B30", radius: 100 },
+    { macro: "carbs", color: "#5856D6", radius: 85 },
+    { macro: "fats", color: "#FF9500", radius: 70 },
+    { macro: "sugar", color: "#34C759", radius: 55 },
+  ] as const;
+
+  return (
+    <View style={{ alignItems: "center", marginVertical: 20 }}>
+      <Svg width={220} height={220} viewBox="-110 -110 220 220">
+        {rings.map(({ macro, color, radius }) => {
+          const circumference = calculateCircumference(radius);
+          const progress =
+            macros[macro as keyof MacroData] / goals[macro as keyof MacroData];
+          const strokeDashoffset = circumference * (1 - Math.min(progress, 1));
+
+          return (
+            <G key={macro}>
+              <Circle
+                r={radius}
+                fill="none"
+                stroke="#E5E5EA"
+                strokeWidth={10}
+              />
+              <Circle
+                r={radius}
+                fill="none"
+                stroke={color}
+                strokeWidth={10}
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                transform="rotate(-90)"
+                strokeLinecap="round"
+              />
+            </G>
+          );
+        })}
+      </Svg>
+      <View style={{ marginTop: 20 }}>
+        {rings.map(({ macro, color }) => (
+          <View
+            key={macro}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginVertical: 5,
+            }}
+          >
+            <View
+              style={{
+                width: 12,
+                height: 12,
+                backgroundColor: color,
+                borderRadius: 6,
+                marginRight: 8,
+              }}
+            />
+            <Text style={{ fontSize: 16 }}>
+              {macro.charAt(0).toUpperCase() + macro.slice(1)}:{" "}
+              {macros[macro as keyof MacroData]}g /{" "}
+              {goals[macro as keyof MacroData]}g
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+export default function WeeklyMacrosScreen() {
   const [selectedDate, setSelectedDate] = useState(
     format(new Date(), "yyyy-MM-dd")
   );
 
-  // Get start of the current week (Sunday)
   const today = new Date();
   const startOfCurrentWeek = startOfWeek(today, { weekStartsOn: 0 });
 
-  // Generate the 7 days of the current week
-  const currentWeekDays = Array.from({ length: 7 }, (_, i) => {
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(startOfCurrentWeek, i);
     return {
-      formatted: format(date, "EEE"), // Day abbreviation (Mon, Tue, etc.)
-      dayNumber: format(date, "d"), // Day number (1, 2, 3, etc.)
-      fullDate: format(date, "yyyy-MM-dd"), // Full date (YYYY-MM-DD)
+      formatted: format(date, "EEE"),
+      dayNumber: format(date, "d"),
+      fullDate: format(date, "yyyy-MM-dd"),
     };
   });
 
-  // Mock macro data for the selected day
+  // Mock data
   const macros = {
-    protein: 120, // in grams
+    protein: 120,
     carbs: 250,
     fats: 70,
     sugar: 30,
   };
 
-  // Daily Macro Goals
   const goals = {
     protein: 150,
     carbs: 300,
@@ -41,181 +124,91 @@ export default function MacrosScreen() {
   };
 
   return (
-    <ScrollView
-      className="flex-1 bg-gray-100"
-      contentContainerStyle={{ padding: 20, paddingBottom: 80 }} // Ensures scrollability
-      keyboardShouldPersistTaps="handled"
-    >
-      <Text className="text-2xl font-bold text-center mb-4">
-        📊 Weekly Macros
-      </Text>
-
-      {/* Weekly View (Rounded Buttons) */}
+    <ScrollView className="flex-1 bg-gray-100 p-4">
+      {/* Week View */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        className="mb-5"
+        className="mb-6"
       >
-        {currentWeekDays.map(({ formatted, dayNumber, fullDate }) => (
-          <TouchableOpacity
+        {weekDays.map(({ formatted, dayNumber, fullDate }) => (
+          <Link
             key={fullDate}
-            className={`mx-2 p-4 rounded-full w-16 h-16 items-center justify-center ${
-              selectedDate === fullDate ? "bg-blue-500 shadow-lg" : "bg-white"
-            }`}
-            onPress={() => setSelectedDate(fullDate)}
+            href={{
+              pathname: "/(tabs)/macros/[date]",
+              params: { date: fullDate },
+            }}
+            asChild
           >
-            <Text
-              className={`text-md font-bold ${
-                selectedDate === fullDate ? "text-white" : "text-gray-700"
+            <TouchableOpacity
+              className={`mx-2 p-4 rounded-xl w-16 h-20 items-center justify-center ${
+                selectedDate === fullDate ? "bg-blue-500" : "bg-white"
               }`}
+              onPress={() => setSelectedDate(fullDate)}
             >
-              {formatted}
-            </Text>
-            <Text
-              className={`text-lg font-semibold ${
-                selectedDate === fullDate ? "text-white" : "text-gray-700"
-              }`}
-            >
-              {dayNumber}
-            </Text>
-          </TouchableOpacity>
+              <Text
+                className={`text-sm font-bold ${
+                  selectedDate === fullDate ? "text-white" : "text-gray-600"
+                }`}
+              >
+                {formatted}
+              </Text>
+              <Text
+                className={`text-lg font-bold ${
+                  selectedDate === fullDate ? "text-white" : "text-gray-800"
+                }`}
+              >
+                {dayNumber}
+              </Text>
+            </TouchableOpacity>
+          </Link>
         ))}
       </ScrollView>
 
-      {/* Centered Macros Wheel */}
-      <View className="items-center my-5">
-        <Svg height="200" width="200" viewBox="0 0 100 100">
-          {/* Background Circle */}
-          <Circle
-            cx="50"
-            cy="50"
-            r="40"
-            stroke="#E5E5E5"
-            strokeWidth="10"
-            fill="none"
-          />
-
-          {/* Protein Progress */}
-          <Circle
-            cx="50"
-            cy="50"
-            r="40"
-            stroke="#FF3B30"
-            strokeWidth="10"
-            fill="none"
-            strokeDasharray="251.2"
-            strokeDashoffset={(1 - macros.protein / goals.protein) * 251.2}
-          />
-
-          {/* Carbs Progress */}
-          <Circle
-            cx="50"
-            cy="50"
-            r="35"
-            stroke="#FF9500"
-            strokeWidth="10"
-            fill="none"
-            strokeDasharray="219.9"
-            strokeDashoffset={(1 - macros.carbs / goals.carbs) * 219.9}
-          />
-
-          {/* Fats Progress */}
-          <Circle
-            cx="50"
-            cy="50"
-            r="30"
-            stroke="#4CD964"
-            strokeWidth="10"
-            fill="none"
-            strokeDasharray="188.4"
-            strokeDashoffset={(1 - macros.fats / goals.fats) * 188.4}
-          />
-
-          {/* Sugar Progress */}
-          <Circle
-            cx="50"
-            cy="50"
-            r="25"
-            stroke="#007AFF"
-            strokeWidth="10"
-            fill="none"
-            strokeDasharray="157.1"
-            strokeDashoffset={(1 - macros.sugar / goals.sugar) * 157.1}
-          />
-        </Svg>
-        <Text className="text-lg font-semibold text-gray-700 mt-3">
-          Macros for {selectedDate}
+      {/* Macro Rings */}
+      <View className="bg-white rounded-xl p-4 mb-6">
+        <Text className="text-xl font-bold mb-2 text-center">
+          Daily Progress
         </Text>
+        <MacroRings macros={macros} goals={goals} />
       </View>
 
-      {/* Macro Progress Overview */}
-      <View className="bg-white rounded-xl p-5 shadow-md">
-        <Text className="text-lg font-semibold text-gray-700 mb-3">
-          Weekly Progress
-        </Text>
-
-        {/* Protein */}
-        <View className="flex-row justify-between items-center mb-1">
-          <Text className="text-gray-600">🥩 Protein</Text>
-          <Text className="text-gray-600">
-            {macros.protein}g / {goals.protein}g
-          </Text>
-        </View>
-        <ProgressBar
-          progress={macros.protein / goals.protein}
-          color="#FF3B30"
-          style={{ height: 8, marginBottom: 10 }}
-        />
-
-        {/* Carbs */}
-        <View className="flex-row justify-between items-center mb-1">
-          <Text className="text-gray-600">🍞 Carbs</Text>
-          <Text className="text-gray-600">
-            {macros.carbs}g / {goals.carbs}g
-          </Text>
-        </View>
-        <ProgressBar
-          progress={macros.carbs / goals.carbs}
-          color="#FF9500"
-          style={{ height: 8, marginBottom: 10 }}
-        />
-
-        {/* Fats */}
-        <View className="flex-row justify-between items-center mb-1">
-          <Text className="text-gray-600">🧈 Fats</Text>
-          <Text className="text-gray-600">
-            {macros.fats}g / {goals.fats}g
-          </Text>
-        </View>
-        <ProgressBar
-          progress={macros.fats / goals.fats}
-          color="#4CD964"
-          style={{ height: 8, marginBottom: 10 }}
-        />
-
-        {/* Sugar */}
-        <View className="flex-row justify-between items-center mb-1">
-          <Text className="text-gray-600">🍭 Sugar</Text>
-          <Text className="text-gray-600">
-            {macros.sugar}g / {goals.sugar}g
-          </Text>
-        </View>
-        <ProgressBar
-          progress={macros.sugar / goals.sugar}
-          color="#007AFF"
-          style={{ height: 8, marginBottom: 10 }}
-        />
+      {/* Detailed Progress */}
+      <View className="bg-white rounded-xl p-6 mb-6">
+        <Text className="text-xl font-bold mb-4">Detailed Progress</Text>
+        {Object.entries(macros).map(([key, value]) => (
+          <View key={key} className="mb-4">
+            <View className="flex-row justify-between mb-2">
+              <Text className="text-gray-600 capitalize">{key}</Text>
+              <Text className="text-gray-600">
+                {value}g / {goals[key as keyof typeof goals]}g
+              </Text>
+            </View>
+            <ProgressBar
+              progress={value / goals[key as keyof typeof goals]}
+              color={
+                key === "protein"
+                  ? "#FF3B30"
+                  : key === "carbs"
+                  ? "#FF9500"
+                  : key === "fats"
+                  ? "#4CD964"
+                  : "#007AFF"
+              }
+              style={{ height: 8, borderRadius: 4 }}
+            />
+          </View>
+        ))}
       </View>
 
-      {/* Button to Navigate to Monthly View */}
-      <TouchableOpacity
-        className="bg-blue-500 rounded-xl p-4 mt-5 items-center"
-        onPress={() => router.push("/macros/monthly")}
-      >
-        <Text className="text-white text-lg font-semibold">
-          📅 View Monthly Macros
-        </Text>
-      </TouchableOpacity>
+      {/* Monthly View Link */}
+      <Link href="/(tabs)/macros/monthly" asChild>
+        <TouchableOpacity className="bg-blue-500 p-4 rounded-xl">
+          <Text className="text-white text-center font-bold text-lg">
+            View Monthly Overview
+          </Text>
+        </TouchableOpacity>
+      </Link>
     </ScrollView>
   );
 }

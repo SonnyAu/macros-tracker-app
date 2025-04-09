@@ -8,7 +8,7 @@ import TabBarBackground from "@/components/ui/TabBarBackground";
 import { Colors } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
 
-export default function TabLayout() {
+export default function TabsLayout() {
   const colorScheme = useColorScheme();
 
   return (
@@ -19,8 +19,15 @@ export default function TabLayout() {
         tabBarButton: HapticTab,
         tabBarBackground: TabBarBackground,
         tabBarStyle: Platform.select({
-          ios: { position: "absolute" },
-          default: {},
+          ios: {
+            backgroundColor: "#fff",
+            borderTopWidth: 1,
+            borderTopColor: "#e5e7eb",
+          },
+          android: {
+            backgroundColor: "#fff",
+            elevation: 8,
+          },
         }),
       }}
     >
@@ -30,7 +37,7 @@ export default function TabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="house.fill" color={color} />
+            <IconSymbol name="house.fill" color={color} size={24} />
           ),
         }}
       />
@@ -41,7 +48,7 @@ export default function TabLayout() {
         options={{
           title: "Macros",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="chart.pie.fill" color={color} />
+            <IconSymbol name="chart.pie.fill" color={color} size={24} />
           ),
         }}
       />
@@ -52,7 +59,7 @@ export default function TabLayout() {
         options={{
           title: "Scanner",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="camera.fill" color={color} />
+            <IconSymbol name="camera.fill" color={color} size={24} />
           ),
         }}
       />
@@ -63,7 +70,7 @@ export default function TabLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="person.fill" color={color} />
+            <IconSymbol name="person.fill" color={color} size={24} />
           ),
         }}
       />
