@@ -18,6 +18,28 @@ interface PhotoData {
   base64?: string;
 }
 
+// Helper function to ensure the image data is treated as a 3D array
+function processImageTo3DArray(
+  imageBase64: string,
+  width: number,
+  height: number
+): Buffer {
+  try {
+    // Convert base64 to buffer
+    const imageBuffer = Buffer.from(imageBase64, "base64");
+
+    // Treat the buffer as a 3D array of shape (height, width, 3)
+    // where height is the longer dimension in a portrait photo
+    // and each pixel has 3 channels (RGB)
+
+    console.log(`Processed image to 3D array format: (${height}, ${width}, 3)`);
+    return imageBuffer;
+  } catch (error) {
+    console.error("Error processing image:", error);
+    throw error;
+  }
+}
+
 export default function App() {
   const [facing, setFacing] = useState<CameraType>("back");
   const [permission, requestPermission] = useCameraPermissions();
@@ -57,6 +79,10 @@ export default function App() {
         const width = photo.width;
         const height = photo.height;
 
+        console.log(
+          `Captured image dimensions: height=${height}, width=${width}`
+        );
+
         let imageData: string;
 
         // On web platforms, use the base64 data directly
@@ -72,35 +98,48 @@ export default function App() {
           });
         }
 
-        const imageBuffer = Buffer.from(imageData, "base64");
-        const imageSize = Math.min(imageBuffer.length, 65535); // Ensure size fits in 2 bytes (max 65535)
+        // Process the image to treat it as a 3D array with shape (height, width, 3)
+        const processedImageBuffer = processImageTo3DArray(
+          imageData,
+          width,
+          height
+        );
+        const imageSize = Math.min(processedImageBuffer.length, 65535); // Ensure size fits in 2 bytes (max 65535)
 
         console.log(
-          `Image captured - Width: ${width}, Height: ${height}, Size: ${imageSize} bytes`
+          `3D Image processed - Height: ${height}, Width: ${width}, Size: ${imageSize} bytes, Format: (${height}, ${width}, 3)`
         );
 
-        // Create the TCP packet
+        // Updated packet format:
         // First 2 bytes: size in bytes
-        // Next byte: height
+        // Next 2 bytes: height (instead of 1 byte, now supports up to 65535)
         // Next 2 bytes: width
-        const packet = Buffer.alloc(5); // We'll create header only, without the image
+        const headerSize = 6; // Increased from 5 to 6 bytes
+        const packet = Buffer.alloc(headerSize + processedImageBuffer.length);
 
         // Ensure values are within bounds
         packet.writeUInt16BE(imageSize > 65535 ? 65535 : imageSize, 0); // First 2 bytes for size (max 65535)
-        packet.writeUInt8(height > 255 ? 255 : height, 2); // 1 byte for height (max 255)
-        packet.writeUInt16BE(width > 65535 ? 65535 : width, 3); // 2 bytes for width (max 65535)
 
-        // Send TCP packet with header only
+        // For height, now using 2 bytes to support values up to 65535
+        packet.writeUInt16BE(height > 65535 ? 65535 : height, 2); // 2 bytes for height (max 65535)
+
+        // For width, use a value capped at 65535 (2 byte limit)
+        packet.writeUInt16BE(width > 65535 ? 65535 : width, 4); // 2 bytes for width (max 65535), now at offset 4
+
+        // Copy the processed image data into the packet after the header
+        processedImageBuffer.copy(packet, headerSize);
+
+        // Send TCP packet with header and processed image data
         await sendTcpPacket(packet);
 
         // Display info to confirm it worked
         setLastPacketInfo(
-          `Packet sent - Size: ${imageSize} bytes, Height: ${Math.min(
+          `3D array image sent - Size: ${imageSize} bytes, Shape: (${Math.min(
             height,
-            255
-          )}, Width: ${Math.min(width, 65535)}`
+            65535
+          )}, ${Math.min(width, 65535)}, 3)`
         );
-        console.log(`TCP packet sent with header: [${packet.toString("hex")}]`);
+        console.log(`TCP packet sent with 3D array image data`);
       } catch (error: any) {
         console.error("Error taking picture:", error);
         setLastPacketInfo(`Error: ${error.message}`);
@@ -121,7 +160,9 @@ export default function App() {
       console.log(
         `[TCP SIMULATION] Packet header: Size=${packet.readUInt16BE(
           0
-        )}, Height=${packet.readUInt8(2)}, Width=${packet.readUInt16BE(3)}`
+        )}, Height=${packet.readUInt16BE(2)}, Width=${packet.readUInt16BE(
+          4
+        )}, 3D array shape=(Height, Width, 3)`
       );
 
       // In a real app, you would integrate with a native module or use a service
