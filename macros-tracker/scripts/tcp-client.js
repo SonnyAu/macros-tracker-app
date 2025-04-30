@@ -4,14 +4,15 @@ const path = require("path");
 
 // Server IP and port
 const serverIP = "127.0.0.1";
-const serverPort = 8080;
+const serverPort = 8081;
 
-// Function to send the image over TCP
+// Function to send the image over TCP and handle response
 function sendImage(imagePath) {
   console.log(`Sending image: ${imagePath}`);
 
   // Create a socket connection
   const client = new net.Socket();
+  let responseData = "";
 
   client.connect(serverPort, serverIP, () => {
     console.log("Connected to server");
@@ -24,12 +25,49 @@ function sendImage(imagePath) {
     client.write(imageBuffer);
     console.log("Image sent");
 
-    // Close the connection after sending
-    client.end();
+    // Set a timeout to wait for response before closing
+    setTimeout(() => {
+      console.log("Waiting for server response...");
+      if (!responseData) {
+        console.log("No response received after timeout, closing connection");
+        client.destroy();
+      }
+    }, 2000); // Wait 2 seconds for response
+  });
+
+  // Handle data received from server
+  client.on("data", (data) => {
+    console.log("Received response from server");
+    responseData += data.toString();
+
+    // After receiving complete response, close connection
+    setTimeout(() => {
+      client.end();
+    }, 500);
   });
 
   client.on("close", () => {
     console.log("Connection closed");
+
+    // Process any response data
+    if (responseData) {
+      try {
+        const jsonResponse = JSON.parse(responseData);
+        console.log("\nReceived nutrition data from AI model:");
+        console.log(JSON.stringify(jsonResponse, null, 2));
+
+        // Save the response to a file
+        const responseFile = path.join(
+          __dirname,
+          "../received_images/latest_nutrition_data.json"
+        );
+        fs.writeFileSync(responseFile, JSON.stringify(jsonResponse, null, 2));
+        console.log(`Saved nutrition data to ${responseFile}`);
+      } catch (err) {
+        console.error("Error parsing server response:", err);
+        console.log("Raw response:", responseData);
+      }
+    }
   });
 
   client.on("error", (err) => {

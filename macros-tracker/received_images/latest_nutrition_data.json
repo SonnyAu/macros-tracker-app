@@ -1,0 +1,27 @@
+{
+  "foodItem": {
+    "name": "Pancakes",
+    "servingSize": {
+      "amount": 138,
+      "unit": "grams"
+    },
+    "nutrition": {
+      "calories": 300,
+      "macros": {
+        "protein": 8,
+        "carbohydrates": 40,
+        "fat": 11,
+        "fiber": 1
+      },
+      "micronutrients": {
+        "sodium": 600,
+        "potassium": 200,
+        "cholesterol": 70,
+        "vitaminA": 100,
+        "vitaminC": 1,
+        "calcium": 150,
+        "iron": 2
+      }
+    }
+  }
+}
