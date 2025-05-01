@@ -1,5 +1,5 @@
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Button,
   StyleSheet,
@@ -7,9 +7,12 @@ import {
   TouchableOpacity,
   View,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import * as FileSystem from "expo-file-system";
 import { Buffer } from "buffer";
+import { DatabaseService } from "../../services/database";
+import { NutritionData } from "../../types/nutrition";
 
 interface PhotoData {
   uri: string;
@@ -45,6 +48,26 @@ export default function App() {
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [lastPacketInfo, setLastPacketInfo] = useState<string>("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [nutritionData, setNutritionData] = useState<NutritionData | null>(
+    null
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  // Initialize database connection
+  useEffect(() => {
+    const initDatabase = async () => {
+      try {
+        const db = DatabaseService.getInstance();
+        await db.connect();
+      } catch (err) {
+        console.error("Failed to connect to database:", err);
+        setError("Database connection failed");
+      }
+    };
+
+    initDatabase();
+  }, []);
 
   if (!permission) {
     // Camera permissions are still loading.
@@ -70,6 +93,10 @@ export default function App() {
   async function takePicture() {
     if (cameraRef.current) {
       try {
+        setIsProcessing(true);
+        setNutritionData(null);
+        setError(null);
+
         // Request base64 data directly to avoid using FileSystem on web
         const photo = (await cameraRef.current.takePictureAsync({
           base64: true,
@@ -121,7 +148,7 @@ export default function App() {
         packet.writeUInt16BE(imageSize > 65535 ? 65535 : imageSize, 0); // First 2 bytes for size (max 65535)
 
         // For height, now using 2 bytes to support values up to 65535
-        packet.writeUInt16BE(height > 65535 ? 65535 : height, 2); // 2 bytes for height (max 65535)
+        packet.writeUInt16BE(height > 65535 ? 65535 : height, 2);
 
         // For width, use a value capped at 65535 (2 byte limit)
         packet.writeUInt16BE(width > 65535 ? 65535 : width, 4); // 2 bytes for width (max 65535), now at offset 4
@@ -130,43 +157,82 @@ export default function App() {
         processedImageBuffer.copy(packet, headerSize);
 
         // Send TCP packet with header and processed image data
-        await sendTcpPacket(packet);
+        const response = await sendTcpPacket(packet);
 
-        // Display info to confirm it worked
-        setLastPacketInfo(
-          `3D array image sent - Size: ${imageSize} bytes, Shape: (${Math.min(
-            height,
-            65535
-          )}, ${Math.min(width, 65535)}, 3)`
-        );
+        if (response) {
+          try {
+            const nutritionData = JSON.parse(response) as NutritionData;
+            setNutritionData(nutritionData);
+            setLastPacketInfo(
+              `Successfully processed ${nutritionData.foodItem.name}`
+            );
+
+            // Save to database
+            const db = DatabaseService.getInstance();
+            await db.saveFoodEntry(nutritionData, "current-user-id"); // Replace with actual user ID
+          } catch (error) {
+            console.error("Error processing nutrition data:", error);
+            setLastPacketInfo("Error processing nutrition data");
+            setError("Failed to process nutrition data");
+          }
+        }
+
         console.log(`TCP packet sent with 3D array image data`);
       } catch (error: any) {
         console.error("Error taking picture:", error);
         setLastPacketInfo(`Error: ${error.message}`);
+        setError(error.message);
+      } finally {
+        setIsProcessing(false);
       }
     }
   }
 
-  async function sendTcpPacket(packet: Buffer) {
+  async function sendTcpPacket(packet: Buffer): Promise<string | null> {
     try {
-      // Using a fixed localhost IP for development
-      const localIp = "127.0.0.1";
-      const serverPort = 8080; // Use any port you prefer
+      // Replace with your Raspberry Pi's IP address
+      const piIp = "192.168.1.100"; // Update this with your Pi's IP
+      const serverPort = 8080;
 
-      // For development, log the packet details as we can't directly use TCP sockets in React Native
+      // For development, log the packet details
+      console.log(`[TCP] Sending packet to ${piIp}:${serverPort}`);
       console.log(
-        `[TCP SIMULATION] Sending packet to ${localIp}:${serverPort}`
-      );
-      console.log(
-        `[TCP SIMULATION] Packet header: Size=${packet.readUInt16BE(
+        `[TCP] Packet header: Size=${packet.readUInt16BE(
           0
         )}, Height=${packet.readUInt16BE(2)}, Width=${packet.readUInt16BE(
           4
         )}, 3D array shape=(Height, Width, 3)`
       );
 
-      // In a real app, you would integrate with a native module or use a service
-      // that can handle TCP connections, but for this example we're simulating it
+      // In a real implementation, you would use a native module or service
+      // that can handle TCP connections. For now, we'll simulate the response
+      return JSON.stringify({
+        foodItem: {
+          name: "Sample Food",
+          servingSize: {
+            amount: 100,
+            unit: "grams",
+          },
+          nutrition: {
+            calories: 200,
+            macros: {
+              protein: 10,
+              carbohydrates: 20,
+              fat: 5,
+              fiber: 2,
+            },
+            micronutrients: {
+              sodium: 200,
+              potassium: 300,
+              cholesterol: 0,
+              vitaminA: 100,
+              vitaminC: 50,
+              calcium: 100,
+              iron: 2,
+            },
+          },
+        },
+      });
     } catch (error: any) {
       console.error("Error sending TCP packet:", error);
       throw error;
@@ -181,16 +247,53 @@ export default function App() {
             <Text style={styles.text}>Flip Camera</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-            <Text style={styles.text}>Take Picture</Text>
+          <TouchableOpacity
+            style={[
+              styles.captureButton,
+              isProcessing && styles.captureButtonDisabled,
+            ]}
+            onPress={takePicture}
+            disabled={isProcessing}
+          >
+            {isProcessing ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.text}>Take Picture</Text>
+            )}
           </TouchableOpacity>
         </View>
+
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
 
         {lastPacketInfo ? (
           <View style={styles.infoContainer}>
             <Text style={styles.infoText}>{lastPacketInfo}</Text>
           </View>
         ) : null}
+
+        {nutritionData && (
+          <View style={styles.nutritionContainer}>
+            <Text style={styles.nutritionTitle}>
+              {nutritionData.foodItem.name}
+            </Text>
+            <Text style={styles.nutritionText}>
+              Calories: {nutritionData.foodItem.nutrition.calories}
+            </Text>
+            <Text style={styles.nutritionText}>
+              Protein: {nutritionData.foodItem.nutrition.macros.protein}g
+            </Text>
+            <Text style={styles.nutritionText}>
+              Carbs: {nutritionData.foodItem.nutrition.macros.carbohydrates}g
+            </Text>
+            <Text style={styles.nutritionText}>
+              Fat: {nutritionData.foodItem.nutrition.macros.fat}g
+            </Text>
+          </View>
+        )}
       </CameraView>
     </View>
   );
@@ -227,6 +330,9 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 5,
   },
+  captureButtonDisabled: {
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+  },
   text: {
     fontSize: 24,
     fontWeight: "bold",
@@ -244,5 +350,38 @@ const styles = StyleSheet.create({
   infoText: {
     color: "white",
     textAlign: "center",
+  },
+  errorContainer: {
+    position: "absolute",
+    top: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: "rgba(255, 0, 0, 0.7)",
+    padding: 10,
+    borderRadius: 5,
+  },
+  errorText: {
+    color: "white",
+    textAlign: "center",
+  },
+  nutritionContainer: {
+    position: "absolute",
+    top: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    padding: 10,
+    borderRadius: 5,
+  },
+  nutritionTitle: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 5,
+  },
+  nutritionText: {
+    color: "white",
+    fontSize: 14,
+    marginBottom: 2,
   },
 });
