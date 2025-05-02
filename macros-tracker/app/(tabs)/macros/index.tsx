@@ -416,15 +416,30 @@ export default function WeeklyMacrosScreen() {
           <View className="flex-row">
             <TouchableOpacity
               onPress={() => router.push("/macros/monthly")}
-              className="bg-blue-100 px-3 py-1 rounded-lg mr-2"
+              className={`${
+                darkMode ? "bg-gray-700" : "bg-blue-100"
+              } p-2 rounded-full mr-2 items-center justify-center`}
+              style={{ width: 36, height: 36 }}
             >
-              <Text className="text-blue-800 font-medium">Monthly</Text>
+              <Ionicons
+                name="calendar"
+                size={20}
+                color={darkMode ? "#60a5fa" : "#1d4ed8"}
+              />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={viewDayDetails}
-              className="bg-blue-100 px-3 py-1 rounded-lg"
+              className={`${
+                darkMode ? "bg-gray-700" : "bg-blue-100"
+              } px-3 py-1 rounded-lg items-center justify-center`}
             >
-              <Text className="text-blue-800 font-medium">Details</Text>
+              <Text
+                className={`${
+                  darkMode ? "text-blue-300" : "text-blue-800"
+                } font-medium`}
+              >
+                Details
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
