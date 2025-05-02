@@ -97,87 +97,73 @@ export default function App() {
         setNutritionData(null);
         setError(null);
 
-        // Request base64 data directly to avoid using FileSystem on web
+        // Request base64 data directly
         const photo = (await cameraRef.current.takePictureAsync({
           base64: true,
+          quality: 0.7,
         })) as PhotoData;
 
-        // Get image dimensions
-        const width = photo.width;
-        const height = photo.height;
-
         console.log(
-          `Captured image dimensions: height=${height}, width=${width}`
+          `Captured image dimensions: height=${photo.height}, width=${photo.width}`
         );
 
         let imageData: string;
 
-        // On web platforms, use the base64 data directly
+        // Get base64 data
         if (Platform.OS === "web") {
           if (!photo.base64) {
             throw new Error("Base64 data not available");
           }
           imageData = photo.base64;
         } else {
-          // On native platforms, we can use FileSystem
           imageData = await FileSystem.readAsStringAsync(photo.uri, {
             encoding: FileSystem.EncodingType.Base64,
           });
         }
 
-        // Process the image to treat it as a 3D array with shape (height, width, 3)
-        const processedImageBuffer = processImageTo3DArray(
-          imageData,
-          width,
-          height
-        );
-        const imageSize = Math.min(processedImageBuffer.length, 65535); // Ensure size fits in 2 bytes (max 65535)
-
-        console.log(
-          `3D Image processed - Height: ${height}, Width: ${width}, Size: ${imageSize} bytes, Format: (${height}, ${width}, 3)`
-        );
-
-        // Updated packet format:
-        // First 2 bytes: size in bytes
-        // Next 2 bytes: height (instead of 1 byte, now supports up to 65535)
-        // Next 2 bytes: width
-        const headerSize = 6; // Increased from 5 to 6 bytes
-        const packet = Buffer.alloc(headerSize + processedImageBuffer.length);
-
-        // Ensure values are within bounds
-        packet.writeUInt16BE(imageSize > 65535 ? 65535 : imageSize, 0); // First 2 bytes for size (max 65535)
-
-        // For height, now using 2 bytes to support values up to 65535
-        packet.writeUInt16BE(height > 65535 ? 65535 : height, 2);
-
-        // For width, use a value capped at 65535 (2 byte limit)
-        packet.writeUInt16BE(width > 65535 ? 65535 : width, 4); // 2 bytes for width (max 65535), now at offset 4
-
-        // Copy the processed image data into the packet after the header
-        processedImageBuffer.copy(packet, headerSize);
-
-        // Send TCP packet with header and processed image data
-        const response = await sendTcpPacket(packet);
-
-        if (response) {
-          try {
-            const nutritionData = JSON.parse(response) as NutritionData;
-            setNutritionData(nutritionData);
-            setLastPacketInfo(
-              `Successfully processed ${nutritionData.foodItem.name}`
-            );
-
-            // Save to database
-            const db = DatabaseService.getInstance();
-            await db.saveFoodEntry(nutritionData, "current-user-id"); // Replace with actual user ID
-          } catch (error) {
-            console.error("Error processing nutrition data:", error);
-            setLastPacketInfo("Error processing nutrition data");
-            setError("Failed to process nutrition data");
-          }
+        // Ensure proper base64 format with data URI prefix
+        if (!imageData.startsWith("data:image/")) {
+          imageData = `data:image/jpeg;base64,${imageData}`;
         }
 
-        console.log(`TCP packet sent with 3D array image data`);
+        // Send the image data directly
+        const response = await fetch(`http://127.0.0.1:8080`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Image-Height": photo.height.toString(),
+            "X-Image-Width": photo.width.toString(),
+          },
+          body: JSON.stringify({
+            image: imageData,
+            height: photo.height,
+            width: photo.width,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Server response:", errorText);
+          throw new Error(
+            `HTTP error! status: ${response.status}, message: ${errorText}`
+          );
+        }
+
+        const responseData = await response.json();
+
+        // Validate and process the nutrition data
+        if (!responseData.foodItem || !responseData.foodItem.nutrition) {
+          throw new Error("Invalid response format from server");
+        }
+
+        setNutritionData(responseData);
+        setLastPacketInfo(
+          `Successfully processed ${responseData.foodItem.name}`
+        );
+
+        // Save to database
+        const db = DatabaseService.getInstance();
+        await db.saveFoodEntry(responseData, "current-user-id");
       } catch (error: any) {
         console.error("Error taking picture:", error);
         setLastPacketInfo(`Error: ${error.message}`);
@@ -190,52 +176,42 @@ export default function App() {
 
   async function sendTcpPacket(packet: Buffer): Promise<string | null> {
     try {
-      // Replace with your Raspberry Pi's IP address
-      const piIp = "192.168.1.100"; // Update this with your Pi's IP
-      const serverPort = 8080;
+      const serverIp = "127.0.0.1"; // Update this with your friend's IP
+      const serverPort = 8080; // Sending port
 
-      // For development, log the packet details
-      console.log(`[TCP] Sending packet to ${piIp}:${serverPort}`);
-      console.log(
-        `[TCP] Packet header: Size=${packet.readUInt16BE(
-          0
-        )}, Height=${packet.readUInt16BE(2)}, Width=${packet.readUInt16BE(
-          4
-        )}, 3D array shape=(Height, Width, 3)`
-      );
+      // Extract image dimensions from the packet
+      const height = packet.readUInt16BE(2);
+      const width = packet.readUInt16BE(4);
 
-      // In a real implementation, you would use a native module or service
-      // that can handle TCP connections. For now, we'll simulate the response
-      return JSON.stringify({
-        foodItem: {
-          name: "Sample Food",
-          servingSize: {
-            amount: 100,
-            unit: "grams",
-          },
-          nutrition: {
-            calories: 200,
-            macros: {
-              protein: 10,
-              carbohydrates: 20,
-              fat: 5,
-              fiber: 2,
-            },
-            micronutrients: {
-              sodium: 200,
-              potassium: 300,
-              cholesterol: 0,
-              vitaminA: 100,
-              vitaminC: 50,
-              calcium: 100,
-              iron: 2,
-            },
-          },
+      console.log(`[HTTP] Sending image data to ${serverIp}:${serverPort}`);
+      console.log(`[HTTP] Image dimensions: ${width}x${height}`);
+
+      const response = await fetch(`http://${serverIp}:${serverPort}`, {
+        method: "POST",
+        mode: "cors",
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "X-Image-Height": height.toString(),
+          "X-Image-Width": width.toString(),
+          Accept: "text/plain",
         },
+        body: packet,
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `HTTP error! status: ${response.status}, message: ${errorText}`
+        );
+      }
+
+      const responseData = await response.text();
+      console.log("[HTTP] Response received:", responseData);
+      return responseData;
     } catch (error: any) {
-      console.error("Error sending TCP packet:", error);
-      throw error;
+      console.error("Error sending HTTP request:", error);
+      setError(error.message);
+      return null;
     }
   }
 
