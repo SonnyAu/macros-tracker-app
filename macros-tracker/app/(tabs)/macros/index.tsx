@@ -15,6 +15,7 @@ import { StatusBar } from "expo-status-bar";
 import { useMacroContext } from "../../context/MacroContext";
 import { Ionicons } from "@expo/vector-icons";
 import { DatabaseService, FoodEntry } from "../../../services/database";
+import { useIsFocused } from "@react-navigation/native";
 
 interface MacroData {
   protein: number;
@@ -180,6 +181,9 @@ export default function WeeklyMacrosScreen() {
     isLoading: isContextLoading,
   } = useMacroContext();
 
+  // Add useIsFocused hook to detect when the screen is active
+  const isFocused = useIsFocused();
+
   const [selectedDate, setSelectedDate] = useState(
     format(new Date(), "yyyy-MM-dd")
   );
@@ -253,9 +257,9 @@ export default function WeeklyMacrosScreen() {
     };
 
     fetchDayData();
-  }, [selectedDate, isContextLoading]);
+  }, [selectedDate, isContextLoading, isFocused]);
 
-  // Fetch data for the whole week - wait for context to be loaded
+  // Also update the fetchWeekData useEffect to refresh when the screen comes into focus
   useEffect(() => {
     if (isContextLoading) return;
 
@@ -264,38 +268,41 @@ export default function WeeklyMacrosScreen() {
         const db = DatabaseService.getInstance();
         await db.connect();
 
-        // Process each day of the week
-        const weekDataObj: { [date: string]: MacroData } = {};
+        const today = new Date();
+        const startOfCurrentWeek = startOfWeek(today, { weekStartsOn: 0 });
+        const endOfCurrentWeek = endOfDay(addDays(startOfCurrentWeek, 6));
 
-        for (const day of weekDays) {
-          const dayDate = parseISO(day.fullDate);
-          const entries = await db.getFoodEntriesByDate(dayDate);
+        // Fetch data for the entire week
+        const entries = await db.getFoodHistory(
+          startOfCurrentWeek,
+          endOfCurrentWeek
+        );
 
-          // Calculate macros for this day
-          const dayMacros = entries.reduce(
-            (acc, entry) => {
-              const { macros } = entry.foodItem.nutrition;
-              return {
-                protein: acc.protein + macros.protein,
-                carbs: acc.carbs + macros.carbohydrates,
-                fats: acc.fats + macros.fat,
-                sugar: acc.sugar + 0,
-              };
-            },
-            { protein: 0, carbs: 0, fats: 0, sugar: 0 }
-          );
+        // Group by date and calculate macros for each day
+        const weekDataMap: { [date: string]: MacroData } = {};
 
-          weekDataObj[day.fullDate] = dayMacros;
-        }
+        entries.forEach((entry) => {
+          const date = entry.date; // This should be YYYY-MM-DD format
 
-        setWeekData(weekDataObj);
+          if (!weekDataMap[date]) {
+            weekDataMap[date] = { protein: 0, carbs: 0, fats: 0, sugar: 0 };
+          }
+
+          const { macros } = entry.foodItem.nutrition;
+          weekDataMap[date].protein += macros.protein;
+          weekDataMap[date].carbs += macros.carbohydrates;
+          weekDataMap[date].fats += macros.fat;
+          // Sugar not tracked in current data model
+        });
+
+        setWeekData(weekDataMap);
       } catch (error) {
         console.error("Error fetching week data:", error);
       }
     };
 
     fetchWeekData();
-  }, [isContextLoading]);
+  }, [isContextLoading, isFocused]);
 
   // Handler for clicking a day
   const handleDayPress = (date: string) => {

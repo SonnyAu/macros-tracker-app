@@ -1,21 +1,78 @@
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { IconSymbol } from "@/components/ui/IconSymbol";
 import { useMacroContext } from "../context/MacroContext";
 import { useState, useEffect } from "react";
+import { DatabaseService, FoodEntry } from "../../services/database";
+import { format } from "date-fns";
+import { useIsFocused } from "@react-navigation/native";
 
 export default function HomeScreen() {
   const router = useRouter();
   const { macroGoals, useGrams, darkMode } = useMacroContext();
+  const isFocused = useIsFocused();
 
-  // For demonstration, these would normally come from a tracking service
+  const [isLoading, setIsLoading] = useState(true);
   const [consumed, setConsumed] = useState({
-    protein: 92,
-    carbs: 186,
-    fats: 42,
-    sugar: 28,
-    calories: 1280,
+    protein: 0,
+    carbs: 0,
+    fats: 0,
+    sugar: 0,
+    calories: 0,
   });
+
+  // Fetch today's food entries from the database
+  useEffect(() => {
+    const fetchTodaysMacros = async () => {
+      try {
+        setIsLoading(true);
+        const db = DatabaseService.getInstance();
+        await db.connect();
+
+        const today = new Date();
+        const entries = await db.getFoodEntriesByDate(today);
+
+        // Calculate total macros for the day from entries
+        let totalProtein = 0;
+        let totalCarbs = 0;
+        let totalFats = 0;
+        let totalSugar = 0;
+
+        entries.forEach((entry) => {
+          const { macros } = entry.foodItem.nutrition;
+          totalProtein += macros.protein;
+          totalCarbs += macros.carbohydrates;
+          totalFats += macros.fat;
+          // Sugar isn't tracked in the current model, so we'll leave it at 0
+        });
+
+        // Calculate calories based on macros (4 calories per gram of protein/carbs, 9 per gram of fat)
+        const totalCalories = totalProtein * 4 + totalCarbs * 4 + totalFats * 9;
+
+        setConsumed({
+          protein: totalProtein,
+          carbs: totalCarbs,
+          fats: totalFats,
+          sugar: totalSugar,
+          calories: Math.round(totalCalories),
+        });
+      } catch (error) {
+        console.error("Error fetching today's food entries:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (isFocused) {
+      fetchTodaysMacros();
+    }
+  }, [isFocused]);
 
   // Calculate percentage of goals met
   const calculateProgress = (current: number, goal: number) => {
@@ -35,10 +92,39 @@ export default function HomeScreen() {
     Number(macroGoals.fats)
   );
 
+  // Calculate estimated total daily calorie goal based on macros
+  const calorieGoal = Math.round(
+    Number(macroGoals.protein) * 4 +
+      Number(macroGoals.carbs) * 4 +
+      Number(macroGoals.fats) * 9
+  );
+
   // Overall progress is an average of the three main macros
   const overallProgress = Math.round(
     (proteinProgress + carbsProgress + fatsProgress) / 3
   );
+
+  if (isLoading) {
+    return (
+      <View
+        className={`flex-1 justify-center items-center ${
+          darkMode ? "bg-gray-900" : "bg-gray-50"
+        }`}
+      >
+        <ActivityIndicator
+          size="large"
+          color={darkMode ? "#60a5fa" : "#3b82f6"}
+        />
+        <Text
+          className={`mt-4 text-base ${
+            darkMode ? "text-white" : "text-gray-800"
+          }`}
+        >
+          Loading today's nutrition data...
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView className={`flex-1 ${darkMode ? "bg-gray-900" : "bg-gray-50"}`}>
@@ -105,7 +191,10 @@ export default function HomeScreen() {
                 <View
                   className="h-1 bg-blue-500 rounded-full"
                   style={{
-                    width: `${calculateProgress(consumed.calories, 2000)}%`,
+                    width: `${calculateProgress(
+                      consumed.calories,
+                      calorieGoal
+                    )}%`,
                   }}
                 />
               </View>
@@ -129,7 +218,7 @@ export default function HomeScreen() {
                   darkMode ? "text-gray-400" : "text-gray-500"
                 }`}
               >
-                Goal: 2000
+                Goal: {calorieGoal}
               </Text>
             </View>
 
