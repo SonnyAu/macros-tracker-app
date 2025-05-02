@@ -1,48 +1,61 @@
 # 📸 Macros Tracker App: Comprehensive Setup and Testing Guide
 
-This guide walks you through setting up and running the Macros Tracker App — a React Native + Python application that allows users to scan food items and get nutritional data using AI and computer vision.
+This guide will walk you through installing, running, and testing the Macros Tracker app, which integrates a React Native front-end with a Python-based backend for AI-powered food recognition and nutrition analysis.
 
 ---
 
-## 🔧 Prerequisites
+## 📦 Prerequisites
 
-Before starting, ensure the following are installed on your computer:
+Before starting, ensure you have the following installed:
 
-### 1. **Node.js and npm (Version 14.0 or higher)**
-- To check if Node.js is installed:
+### ✅ Node.js and npm (v14.0 or higher)
+
+- Check by running:
   ```bash
   node --version
   ```
-- If not installed or outdated, download from: [https://nodejs.org](https://nodejs.org)
+- If not installed, download from: [https://nodejs.org](https://nodejs.org)
 
-### 2. **Python (Version 3.8 or higher)**
-- To check if Python is installed:
+### ✅ Python (v3.8 or higher)
+
+- Check by running:
   ```bash
   python --version
-  # or
+  ```
+  or
+  ```bash
   python3 --version
   ```
-- If not installed or outdated, download from: [https://www.python.org/downloads/](https://www.python.org/downloads/)
-- ✅ **Important**: During installation, make sure to check "Add Python to PATH"
+- If not installed, download from: [https://www.python.org/downloads/](https://www.python.org/downloads/)
+- **IMPORTANT:** During installation, make sure to check **“Add Python to PATH”**
 
 ---
 
-## 📂 Project Setup Instructions
+## 📂 Clone the Repository
 
-### Step 1: Navigate to the Project Folder
+Use Git to clone the repository to your local machine:
 
-Open **Command Prompt** (Windows) or **Terminal** (Mac), then run:
+```bash
+git clone https://github.com/SonnyAu/macros-tracker-app.git
+cd macros-tracker
+```
+---
+
+## 🚀 Setup Instructions
+
+### Step 1: Navigate to the Project Directory
 
 ```bash
 cd path/to/macros-tracker
 ```
 
-Examples:
-- Windows:
+Example:
+
+- **Windows:**
   ```bash
   cd C:\Users\YourUsername\Desktop\macros-tracker
   ```
-- macOS:
+- **Mac:**
   ```bash
   cd /Users/YourUsername/Desktop/macros-tracker
   ```
@@ -51,145 +64,157 @@ Examples:
 
 ### Step 2: Install JavaScript Dependencies
 
-Install the frontend dependencies:
-
 ```bash
 npm install
 ```
 
-Wait until the installation completes and your prompt returns.
+Wait for the installation to complete. This may take a few minutes.
 
 ---
 
-### Step 3: Set Up Python Environment
-
-Run the Python environment setup script:
+### Step 3: Set Up the Python Environment
 
 ```bash
 npm run setup-python
 ```
 
-This command:
-- Installs required Python packages like `opencv-python`, `transformers`, and the Mistral AI client.
-- Downloads any necessary ML models.
-- Displays `Setup completed successfully!` when done.
+This will:
+- Install Python packages (e.g., OpenCV, `transformers`, Mistral client)
+- Download necessary ML models
 
-This may take several minutes.
+> This may take several minutes. You'll see `Setup completed successfully!` when done.
 
 ---
 
 ### Step 4: Start the Application
-
-Start both the backend (Python) and frontend (React Native web) with:
 
 ```bash
 npm run start-direct
 ```
 
 You should see:
+
 - `Starting Python server...`
-- `Server running on port 8080...`
 - `Starting Expo app...`
+- `Server running on port 8080...`
 - `Expo DevTools is running at http://localhost:8081`
+- `Web is waiting on http://localhost:8081`
 
 ---
 
 ### Step 5: Open the Application in a Web Browser
 
-> **Why the Web Version?**  
-> We use the **web version** of the app instead of **Expo Go** because Expo Go requires the **exact matching SDK version**, which can lead to compatibility issues. The web version avoids these problems and simplifies testing.
+**IMPORTANT:**  
+We are using the **web version** of the app instead of Expo Go due to SDK version compatibility issues with mobile.  
+Expo Go requires **exact SDK matches**, which can cause unexpected errors during grading or testing.  
+Using the web version avoids these problems and provides consistent cross-platform behavior.
 
 To open the app:
-
-1. Open your browser (Google Chrome recommended)
+1. Launch **Google Chrome**
 2. Navigate to:
-
-```text
-http://localhost:8081
-```
-
-Or click the link displayed in your terminal.
+   ```
+   http://localhost:8081
+   ```
 
 ---
 
-## 📷 Using the Scanner Feature
-
 ### Step 6: Navigate to the Scanner Tab
 
-1. Once the app loads, locate the bottom navigation bar
-2. Click on the **Scanner** tab (camera icon)
+1. On the home screen, look at the bottom navigation tabs.
+2. Click the **“Scanner”** tab (camera icon).
+3. The Scanner page will load and request camera access.
 
 ---
 
 ### Step 7: Allow Camera Access
 
-1. When prompted, **click "Allow"** to grant camera access
-2. If you click "Block" by accident:
-   - Click the camera/lock icon in the browser's address bar
-   - Change the permission to **Allow**
+1. When prompted, click **“Allow”** to grant camera access.
+2. If you accidentally click **“Block”**, click the **camera/lock icon** in your browser’s address bar to change the permission.
 
 ---
 
 ### Step 8: Take a Picture of a Food Item
 
-1. Hold up a food item to your webcam
-2. Click the **"Take Picture"** button
-3. Wait 5–15 seconds while the app processes the image
+1. Hold a food item in front of your webcam.
+2. Click the **“Take Picture”** button.
+3. Wait for the image to process (5–15 seconds).
 
 ---
 
 ### Step 9: View Nutrition Information
 
-Once the image is processed, you’ll see:
-- **Food Name**
-- **Calories**
-- **Protein (g)**
-- **Carbohydrates (g)**
-- **Fat (g)**
+After processing, you’ll see:
+- Food Name
+- Calories
+- Protein (g)
+- Carbohydrates (g)
+- Fat (g)
 
-If no data appears:
-- Try using better lighting
-- Try again with a more common food item (e.g. apple, banana)
+If no information appears:
+- Try better lighting
+- Use a more recognizable food item
+- Ensure the Python server is running
 
 ---
 
-## 🛠️ Troubleshooting Guide
+## 🛠️ Troubleshooting
 
-### ❌ Python Server Doesn’t Start
+### 🔧 Python Server Won’t Start
 
-1. Confirm Python installation:
+1. Ensure Python is installed correctly:
    ```bash
    python --version
    ```
-2. Try running the server directly:
+2. Run the server manually:
    ```bash
-   cd path/to/macros-tracker/scripts
+   cd scripts
    python server.py
    ```
+   Look for: `Server running on port 8080...`
 
 ---
 
-### ❌ Web Page Doesn’t Load
+### 🔧 Web Page Doesn’t Load
 
-- Ensure both Python and Expo servers are running
-- Check for port conflicts (especially port `8081`)
-- Try using a private/incognito window
-- Ensure your firewall isn’t blocking local ports
-
----
-
-### ❌ Camera Doesn’t Work
-
-- Make sure browser has camera permission
-- Try Google Chrome
-- Ensure your webcam works in other apps
+- Ensure **both servers** are running
+- Check if **port 8081** is available
+- Try opening the app in **Incognito Mode**
+- Disable any local firewalls temporarily
 
 ---
 
-### ❌ Food Not Recognized
+### 🔧 Camera Isn’t Working
 
-- Use clear lighting and angles
-- Try again with simple, common food items
-- Confirm that the Python server is still running
+- Make sure you **allowed camera access**
+- Try **Google Chrome**
+- Test the camera in another app to confirm functionality
 
 ---
+
+### 🔧 Food Recognition Doesn’t Work
+
+- Ensure **food is clearly visible**
+- Improve **lighting**
+- Try basic items like an **apple** or **banana**
+- Double-check that the **Python server is active**
+
+---
+
+## 🧠 Technical Notes (For Grading)
+
+This app integrates:
+
+- **React Native** front-end (running in web mode)
+- **Python** backend for image processing and AI inference
+- **OpenCV** and **HuggingFace Transformers** for recognition
+- **Mistral AI** for nutrition prediction
+
+✅ Before testing, verify that the terminal prints:
+```
+Server running on port 8080...
+```
+
+---
+
+> For any setup issues, please reach out to the development team or open a GitHub issue.
+
