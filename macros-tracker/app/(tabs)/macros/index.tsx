@@ -1,13 +1,20 @@
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
 import { Link, router } from "expo-router";
 import { useState, useEffect } from "react";
-import { format, addDays, startOfWeek } from "date-fns";
+import { format, addDays, startOfWeek, endOfDay, parseISO } from "date-fns";
 import { ProgressBar } from "react-native-paper";
 import { Svg, Circle, G, Text as SvgText } from "react-native-svg";
 import { BlurView } from "expo-blur";
 import { StatusBar } from "expo-status-bar";
 import { useMacroContext } from "../../context/MacroContext";
 import { Ionicons } from "@expo/vector-icons";
+import { DatabaseService, FoodEntry } from "../../../services/database";
 
 interface MacroData {
   protein: number;
@@ -166,11 +173,25 @@ function MacroRings({ macros, goals, useGrams, darkMode }: MacroRingsProps) {
 }
 
 export default function WeeklyMacrosScreen() {
-  const { macroGoals, useGrams, darkMode } = useMacroContext();
+  const {
+    macroGoals,
+    useGrams,
+    darkMode,
+    isLoading: isContextLoading,
+  } = useMacroContext();
 
   const [selectedDate, setSelectedDate] = useState(
     format(new Date(), "yyyy-MM-dd")
   );
+  const [macros, setMacros] = useState<MacroData>({
+    protein: 0,
+    carbs: 0,
+    fats: 0,
+    sugar: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [weekData, setWeekData] = useState<{ [date: string]: MacroData }>({});
+  const [fetchedEntries, setFetchedEntries] = useState<FoodEntry[]>([]);
 
   const today = new Date();
   const startOfCurrentWeek = startOfWeek(today, { weekStartsOn: 0 });
@@ -185,14 +206,6 @@ export default function WeeklyMacrosScreen() {
     };
   });
 
-  // Mock data for consumed macros
-  const macros = {
-    protein: 120,
-    carbs: 250,
-    fats: 70,
-    sugar: 30,
-  };
-
   // Use macro goals from context
   const goals = {
     protein: Number(macroGoals.protein),
@@ -201,456 +214,443 @@ export default function WeeklyMacrosScreen() {
     sugar: Number(macroGoals.sugar),
   };
 
+  // Fetch data for selected date - wait for context to be loaded
+  useEffect(() => {
+    if (isContextLoading) return;
+
+    const fetchDayData = async () => {
+      try {
+        setLoading(true);
+        const db = DatabaseService.getInstance();
+        await db.connect();
+
+        const selectedDateObj = parseISO(selectedDate);
+        const fetchedEntries = await db.getFoodEntriesByDate(selectedDateObj);
+
+        // Set the fetched entries to state
+        setFetchedEntries(fetchedEntries);
+
+        // Calculate total macros for the day
+        const calculatedMacros = fetchedEntries.reduce(
+          (acc, entry) => {
+            const { macros } = entry.foodItem.nutrition;
+            return {
+              protein: acc.protein + macros.protein,
+              carbs: acc.carbs + macros.carbohydrates,
+              fats: acc.fats + macros.fat,
+              sugar: acc.sugar + 0, // Sugar not tracked in current data model
+            };
+          },
+          { protein: 0, carbs: 0, fats: 0, sugar: 0 }
+        );
+
+        setMacros(calculatedMacros);
+      } catch (error) {
+        console.error("Error fetching food entries:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDayData();
+  }, [selectedDate, isContextLoading]);
+
+  // Fetch data for the whole week - wait for context to be loaded
+  useEffect(() => {
+    if (isContextLoading) return;
+
+    const fetchWeekData = async () => {
+      try {
+        const db = DatabaseService.getInstance();
+        await db.connect();
+
+        // Process each day of the week
+        const weekDataObj: { [date: string]: MacroData } = {};
+
+        for (const day of weekDays) {
+          const dayDate = parseISO(day.fullDate);
+          const entries = await db.getFoodEntriesByDate(dayDate);
+
+          // Calculate macros for this day
+          const dayMacros = entries.reduce(
+            (acc, entry) => {
+              const { macros } = entry.foodItem.nutrition;
+              return {
+                protein: acc.protein + macros.protein,
+                carbs: acc.carbs + macros.carbohydrates,
+                fats: acc.fats + macros.fat,
+                sugar: acc.sugar + 0,
+              };
+            },
+            { protein: 0, carbs: 0, fats: 0, sugar: 0 }
+          );
+
+          weekDataObj[day.fullDate] = dayMacros;
+        }
+
+        setWeekData(weekDataObj);
+      } catch (error) {
+        console.error("Error fetching week data:", error);
+      }
+    };
+
+    fetchWeekData();
+  }, [isContextLoading]);
+
+  // Handler for clicking a day
+  const handleDayPress = (date: string) => {
+    setSelectedDate(date);
+  };
+
+  // Navigate to day detail view
+  const viewDayDetails = () => {
+    router.push({
+      pathname: "/(tabs)/macros/day/[date]",
+      params: { date: selectedDate },
+    });
+  };
+
+  // Show loading screen when context is loading
+  if (isContextLoading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: darkMode ? "#121212" : "#F2F2F7",
+        }}
+      >
+        <ActivityIndicator
+          size="large"
+          color={darkMode ? "#60a5fa" : "#3b82f6"}
+        />
+        <Text
+          style={{
+            marginTop: 16,
+            color: darkMode ? "#ffffff" : "#000000",
+            fontSize: 16,
+          }}
+        >
+          Loading macros data...
+        </Text>
+      </View>
+    );
+  }
+
   return (
-    <View className={`flex-1 ${darkMode ? "bg-gray-900" : "bg-[#F2F2F7]"}`}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: darkMode ? "#121212" : "#F2F2F7" }}
+      contentContainerStyle={{ padding: 16 }}
+    >
       <StatusBar style={darkMode ? "light" : "dark"} />
-      <ScrollView className="flex-1">
-        {/* Header with Monthly View Button */}
-        <View className="px-6 pt-12 pb-4 flex-row justify-between items-center">
-          <View>
+
+      {/* Week Day Selector */}
+      <View
+        className={`flex-row justify-between mb-6 p-2 rounded-xl ${
+          darkMode ? "bg-gray-800" : "bg-white"
+        }`}
+      >
+        {weekDays.map((day) => (
+          <TouchableOpacity
+            key={day.fullDate}
+            onPress={() => handleDayPress(day.fullDate)}
+            className={`items-center p-2 rounded-lg ${
+              selectedDate === day.fullDate
+                ? darkMode
+                  ? "bg-blue-900"
+                  : "bg-blue-100"
+                : ""
+            }`}
+          >
             <Text
-              className={`text-3xl font-bold ${
-                darkMode ? "text-white" : "text-black"
+              className={`${
+                darkMode ? "text-gray-400" : "text-gray-500"
+              } text-xs font-medium`}
+            >
+              {day.formatted}
+            </Text>
+            <Text
+              className={`text-base font-semibold mt-1 ${
+                day.isToday
+                  ? "text-blue-500"
+                  : selectedDate === day.fullDate
+                  ? darkMode
+                    ? "text-white"
+                    : "text-blue-800"
+                  : darkMode
+                  ? "text-white"
+                  : "text-gray-800"
               }`}
             >
-              Macros
+              {day.dayNumber}
             </Text>
-            <Text
-              className={`text-lg ${
-                darkMode ? "text-gray-400" : "text-gray-500"
-              } mt-1`}
-            >
-              {format(new Date(selectedDate), "MMMM d, yyyy")}
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={() => router.push("/(tabs)/macros/monthly")}
-            className={`${
-              darkMode ? "bg-gray-800" : "bg-blue-100"
-            } p-2 rounded-full`}
-          >
-            <Ionicons
-              name="calendar"
-              size={24}
-              color={darkMode ? "#60a5fa" : "#3b82f6"}
-            />
+            {day.isToday && (
+              <View className="h-1 w-1 rounded-full bg-blue-500 mt-1" />
+            )}
           </TouchableOpacity>
-        </View>
+        ))}
+      </View>
 
-        {/* Week View */}
-        <View className="px-6 mb-6">
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingRight: 20 }}
+      {/* Daily Macros Ring */}
+      <View
+        className={`${
+          darkMode ? "bg-gray-800" : "bg-white"
+        } rounded-2xl p-6 mb-6 shadow-sm`}
+      >
+        <View className="flex-row justify-between items-center mb-4">
+          <Text
+            className={`font-semibold text-lg ${
+              darkMode ? "text-white" : "text-black"
+            }`}
           >
-            {weekDays.map(({ formatted, dayNumber, fullDate, isToday }) => (
-              <Link
-                key={fullDate}
-                href={{
-                  pathname: "/(tabs)/macros/[date]",
-                  params: { date: fullDate },
-                }}
-                asChild
-              >
-                <TouchableOpacity
-                  className={`mr-3 py-3 px-1.5 rounded-2xl w-14 h-22 items-center justify-center 
-                    ${
-                      selectedDate === fullDate
-                        ? darkMode
-                          ? "bg-blue-900 border-blue-700"
-                          : "bg-blue-100 border-blue-200"
-                        : darkMode
-                        ? "bg-gray-800"
-                        : "bg-white"
-                    } ${
-                    isToday
-                      ? darkMode
-                        ? "border border-blue-500"
-                        : "border border-blue-400"
-                      : ""
-                  }`}
-                  onPress={() => setSelectedDate(fullDate)}
-                >
-                  <Text
-                    className={`text-xs ${
-                      selectedDate === fullDate
-                        ? darkMode
-                          ? "text-blue-300"
-                          : "text-blue-600"
-                        : darkMode
-                        ? "text-gray-400"
-                        : "text-gray-500"
-                    }`}
-                  >
-                    {formatted}
-                  </Text>
-                  <Text
-                    className={`text-xl font-semibold mt-1 ${
-                      selectedDate === fullDate
-                        ? darkMode
-                          ? "text-blue-300"
-                          : "text-blue-600"
-                        : darkMode
-                        ? "text-white"
-                        : "text-black"
-                    }`}
-                  >
-                    {dayNumber}
-                  </Text>
-                </TouchableOpacity>
-              </Link>
-            ))}
-          </ScrollView>
+            Daily Macros
+          </Text>
+          <View className="flex-row">
+            <TouchableOpacity
+              onPress={() => router.push("/macros/monthly")}
+              className="bg-blue-100 px-3 py-1 rounded-lg mr-2"
+            >
+              <Text className="text-blue-800 font-medium">Monthly</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={viewDayDetails}
+              className="bg-blue-100 px-3 py-1 rounded-lg"
+            >
+              <Text className="text-blue-800 font-medium">Details</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Macro Rings */}
-        <View
-          className={`mx-6 rounded-3xl p-5 mb-6 ${
-            darkMode ? "bg-gray-800" : "bg-white"
-          } shadow-sm`}
-        >
+        {loading ? (
+          <Text
+            className={`text-center py-4 ${
+              darkMode ? "text-gray-400" : "text-gray-500"
+            }`}
+          >
+            Loading...
+          </Text>
+        ) : (
           <MacroRings
             macros={macros}
             goals={goals}
             useGrams={useGrams}
             darkMode={darkMode}
           />
-        </View>
+        )}
+      </View>
 
-        {/* Meals Card */}
-        <View className="px-6 mb-4">
-          <View className="flex-row justify-between items-center mb-4">
-            <Text
-              className={`text-xl font-semibold ${
-                darkMode ? "text-white" : "text-black"
-              }`}
-            >
-              Today's Meals
-            </Text>
-            <TouchableOpacity>
-              <Text className="text-blue-500 font-medium">Add Meal</Text>
-            </TouchableOpacity>
-          </View>
+      {/* Weekly Progress */}
+      <View
+        className={`${
+          darkMode ? "bg-gray-800" : "bg-white"
+        } rounded-2xl p-4 mb-6 shadow-sm`}
+      >
+        <Text
+          className={`font-semibold text-lg mb-4 ${
+            darkMode ? "text-white" : "text-black"
+          }`}
+        >
+          Weekly Progress
+        </Text>
 
-          {/* Breakfast */}
-          <View
-            className={`${
-              darkMode ? "bg-gray-800" : "bg-white"
-            } rounded-2xl p-4 mb-4 shadow-sm`}
-          >
-            <View className="flex-row justify-between items-center mb-3">
+        <View className="space-y-4">
+          {/* Protein Weekly */}
+          <View>
+            <View className="flex-row justify-between mb-1">
               <Text
-                className={`font-semibold text-lg ${
-                  darkMode ? "text-white" : "text-black"
-                }`}
+                className={`${darkMode ? "text-gray-400" : "text-gray-600"}`}
               >
-                🍳 Breakfast
+                Protein
               </Text>
               <Text
-                className={`${darkMode ? "text-gray-400" : "text-gray-500"}`}
+                className={`${darkMode ? "text-gray-400" : "text-gray-600"}`}
               >
-                440 cals
+                {Object.values(weekData).reduce(
+                  (sum, day) => sum + day.protein,
+                  0
+                )}
+                {useGrams ? "g" : "oz"} / {Number(macroGoals.protein) * 7}
+                {useGrams ? "g" : "oz"}
               </Text>
             </View>
-            <View className="flex-row">
-              <View className="flex-1 pr-2">
-                <Text
-                  className={`${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } mb-1`}
-                >
-                  Protein
-                </Text>
-                <ProgressBar
-                  progress={0.7}
-                  color="#FF375F"
-                  style={{
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: darkMode ? "#333333" : "#E5E5EA",
-                  }}
-                />
-                <Text
-                  className={`text-right text-xs mt-1 ${
-                    darkMode ? "text-gray-400" : "text-gray-500"
-                  }`}
-                >
-                  35{useGrams ? "g" : "oz"}
-                </Text>
-              </View>
-              <View className="flex-1 px-1">
-                <Text
-                  className={`${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } mb-1`}
-                >
-                  Carbs
-                </Text>
-                <ProgressBar
-                  progress={0.5}
-                  color="#5E5CE6"
-                  style={{
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: darkMode ? "#333333" : "#E5E5EA",
-                  }}
-                />
-                <Text
-                  className={`text-right text-xs mt-1 ${
-                    darkMode ? "text-gray-400" : "text-gray-500"
-                  }`}
-                >
-                  45{useGrams ? "g" : "oz"}
-                </Text>
-              </View>
-              <View className="flex-1 pl-2">
-                <Text
-                  className={`${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } mb-1`}
-                >
-                  Fat
-                </Text>
-                <ProgressBar
-                  progress={0.3}
-                  color="#FF9F0A"
-                  style={{
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: darkMode ? "#333333" : "#E5E5EA",
-                  }}
-                />
-                <Text
-                  className={`text-right text-xs mt-1 ${
-                    darkMode ? "text-gray-400" : "text-gray-500"
-                  }`}
-                >
-                  12{useGrams ? "g" : "oz"}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Lunch */}
-          <View
-            className={`${
-              darkMode ? "bg-gray-800" : "bg-white"
-            } rounded-2xl p-4 mb-4 shadow-sm`}
-          >
-            <View className="flex-row justify-between items-center mb-3">
-              <Text
-                className={`font-semibold text-lg ${
-                  darkMode ? "text-white" : "text-black"
-                }`}
-              >
-                🥗 Lunch
-              </Text>
-              <Text
-                className={`${darkMode ? "text-gray-400" : "text-gray-500"}`}
-              >
-                680 cals
-              </Text>
-            </View>
-            <View className="flex-row">
-              <View className="flex-1 pr-2">
-                <Text
-                  className={`${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } mb-1`}
-                >
-                  Protein
-                </Text>
-                <ProgressBar
-                  progress={0.6}
-                  color="#FF375F"
-                  style={{
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: darkMode ? "#333333" : "#E5E5EA",
-                  }}
-                />
-                <Text
-                  className={`text-right text-xs mt-1 ${
-                    darkMode ? "text-gray-400" : "text-gray-500"
-                  }`}
-                >
-                  40{useGrams ? "g" : "oz"}
-                </Text>
-              </View>
-              <View className="flex-1 px-1">
-                <Text
-                  className={`${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } mb-1`}
-                >
-                  Carbs
-                </Text>
-                <ProgressBar
-                  progress={0.8}
-                  color="#5E5CE6"
-                  style={{
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: darkMode ? "#333333" : "#E5E5EA",
-                  }}
-                />
-                <Text
-                  className={`text-right text-xs mt-1 ${
-                    darkMode ? "text-gray-400" : "text-gray-500"
-                  }`}
-                >
-                  75{useGrams ? "g" : "oz"}
-                </Text>
-              </View>
-              <View className="flex-1 pl-2">
-                <Text
-                  className={`${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } mb-1`}
-                >
-                  Fat
-                </Text>
-                <ProgressBar
-                  progress={0.4}
-                  color="#FF9F0A"
-                  style={{
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: darkMode ? "#333333" : "#E5E5EA",
-                  }}
-                />
-                <Text
-                  className={`text-right text-xs mt-1 ${
-                    darkMode ? "text-gray-400" : "text-gray-500"
-                  }`}
-                >
-                  18{useGrams ? "g" : "oz"}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Dinner */}
-          <View
-            className={`${
-              darkMode ? "bg-gray-800" : "bg-white"
-            } rounded-2xl p-4 mb-4 shadow-sm`}
-          >
-            <View className="flex-row justify-between items-center mb-3">
-              <Text
-                className={`font-semibold text-lg ${
-                  darkMode ? "text-white" : "text-black"
-                }`}
-              >
-                🍽️ Dinner
-              </Text>
-              <Text
-                className={`${darkMode ? "text-gray-400" : "text-gray-500"}`}
-              >
-                720 cals
-              </Text>
-            </View>
-            <View className="flex-row">
-              <View className="flex-1 pr-2">
-                <Text
-                  className={`${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } mb-1`}
-                >
-                  Protein
-                </Text>
-                <ProgressBar
-                  progress={0.9}
-                  color="#FF375F"
-                  style={{
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: darkMode ? "#333333" : "#E5E5EA",
-                  }}
-                />
-                <Text
-                  className={`text-right text-xs mt-1 ${
-                    darkMode ? "text-gray-400" : "text-gray-500"
-                  }`}
-                >
-                  45{useGrams ? "g" : "oz"}
-                </Text>
-              </View>
-              <View className="flex-1 px-1">
-                <Text
-                  className={`${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } mb-1`}
-                >
-                  Carbs
-                </Text>
-                <ProgressBar
-                  progress={0.7}
-                  color="#5E5CE6"
-                  style={{
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: darkMode ? "#333333" : "#E5E5EA",
-                  }}
-                />
-                <Text
-                  className={`text-right text-xs mt-1 ${
-                    darkMode ? "text-gray-400" : "text-gray-500"
-                  }`}
-                >
-                  60{useGrams ? "g" : "oz"}
-                </Text>
-              </View>
-              <View className="flex-1 pl-2">
-                <Text
-                  className={`${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } mb-1`}
-                >
-                  Fat
-                </Text>
-                <ProgressBar
-                  progress={0.8}
-                  color="#FF9F0A"
-                  style={{
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: darkMode ? "#333333" : "#E5E5EA",
-                  }}
-                />
-                <Text
-                  className={`text-right text-xs mt-1 ${
-                    darkMode ? "text-gray-400" : "text-gray-500"
-                  }`}
-                >
-                  30{useGrams ? "g" : "oz"}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Month View Button at the bottom */}
-        <View className="px-6 pb-8 pt-2">
-          <TouchableOpacity
-            onPress={() => router.push("/(tabs)/macros/monthly")}
-            className={`${
-              darkMode ? "bg-blue-900" : "bg-blue-500"
-            } rounded-xl py-4 px-6 flex-row justify-center items-center shadow-md mb-4`}
-          >
-            <Ionicons
-              name="calendar-outline"
-              size={20}
-              color="white"
-              style={{ marginRight: 8 }}
+            <ProgressBar
+              progress={Math.min(
+                Object.values(weekData).reduce(
+                  (sum, day) => sum + day.protein,
+                  0
+                ) /
+                  (Number(macroGoals.protein) * 7),
+                1
+              )}
+              color="#FF375F"
+              style={{
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: darkMode ? "#333333" : "#E5E5EA",
+              }}
             />
-            <Text className="text-white font-semibold text-base">
-              View Monthly Calendar
-            </Text>
-          </TouchableOpacity>
+          </View>
+
+          {/* Carbs Weekly */}
+          <View>
+            <View className="flex-row justify-between mb-1">
+              <Text
+                className={`${darkMode ? "text-gray-400" : "text-gray-600"}`}
+              >
+                Carbs
+              </Text>
+              <Text
+                className={`${darkMode ? "text-gray-400" : "text-gray-600"}`}
+              >
+                {Object.values(weekData).reduce(
+                  (sum, day) => sum + day.carbs,
+                  0
+                )}
+                {useGrams ? "g" : "oz"} / {Number(macroGoals.carbs) * 7}
+                {useGrams ? "g" : "oz"}
+              </Text>
+            </View>
+            <ProgressBar
+              progress={Math.min(
+                Object.values(weekData).reduce(
+                  (sum, day) => sum + day.carbs,
+                  0
+                ) /
+                  (Number(macroGoals.carbs) * 7),
+                1
+              )}
+              color="#5E5CE6"
+              style={{
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: darkMode ? "#333333" : "#E5E5EA",
+              }}
+            />
+          </View>
+
+          {/* Fats Weekly */}
+          <View>
+            <View className="flex-row justify-between mb-1">
+              <Text
+                className={`${darkMode ? "text-gray-400" : "text-gray-600"}`}
+              >
+                Fats
+              </Text>
+              <Text
+                className={`${darkMode ? "text-gray-400" : "text-gray-600"}`}
+              >
+                {Object.values(weekData).reduce(
+                  (sum, day) => sum + day.fats,
+                  0
+                )}
+                {useGrams ? "g" : "oz"} / {Number(macroGoals.fats) * 7}
+                {useGrams ? "g" : "oz"}
+              </Text>
+            </View>
+            <ProgressBar
+              progress={Math.min(
+                Object.values(weekData).reduce(
+                  (sum, day) => sum + day.fats,
+                  0
+                ) /
+                  (Number(macroGoals.fats) * 7),
+                1
+              )}
+              color="#FF9F0A"
+              style={{
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: darkMode ? "#333333" : "#E5E5EA",
+              }}
+            />
+          </View>
         </View>
-      </ScrollView>
-    </View>
+      </View>
+
+      {/* Recent Entries Section - Skip showing dummy data */}
+      <View
+        className={`${
+          darkMode ? "bg-gray-800" : "bg-white"
+        } rounded-2xl p-4 shadow-sm mb-6`}
+      >
+        <Text
+          className={`font-semibold text-lg mb-4 ${
+            darkMode ? "text-white" : "text-black"
+          }`}
+        >
+          Recently Added
+        </Text>
+
+        {loading ? (
+          <Text
+            className={`text-center py-4 ${
+              darkMode ? "text-gray-400" : "text-gray-500"
+            }`}
+          >
+            Loading...
+          </Text>
+        ) : selectedDate === format(new Date(), "yyyy-MM-dd") ? (
+          <>
+            {fetchedEntries && fetchedEntries.length > 0 ? (
+              <ScrollView
+                style={{ maxHeight: 200 }}
+                showsVerticalScrollIndicator={true}
+                className="space-y-2"
+              >
+                <View className="space-y-2">
+                  {fetchedEntries.map((entry) => (
+                    <View
+                      key={entry.id}
+                      className={`flex-row justify-between items-center p-3 rounded-lg ${
+                        darkMode ? "bg-gray-700" : "bg-gray-100"
+                      }`}
+                    >
+                      <View>
+                        <Text
+                          className={`font-medium ${
+                            darkMode ? "text-white" : "text-gray-800"
+                          }`}
+                        >
+                          {entry.foodItem?.name || "Food Item"}
+                        </Text>
+                        <Text
+                          className={`text-xs ${
+                            darkMode ? "text-gray-400" : "text-gray-500"
+                          }`}
+                        >
+                          {format(new Date(entry.timestamp), "h:mm a")}
+                        </Text>
+                      </View>
+                      <Text
+                        className={darkMode ? "text-gray-300" : "text-gray-700"}
+                      >
+                        {entry.foodItem?.nutrition?.calories || 0} cal
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            ) : (
+              <Text
+                className={`text-center py-4 ${
+                  darkMode ? "text-gray-400" : "text-gray-500"
+                }`}
+              >
+                No entries added today
+              </Text>
+            )}
+          </>
+        ) : (
+          <Text
+            className={`text-center py-4 ${
+              darkMode ? "text-gray-400" : "text-gray-500"
+            }`}
+          >
+            Select today's date to see recent entries
+          </Text>
+        )}
+      </View>
+    </ScrollView>
   );
 }

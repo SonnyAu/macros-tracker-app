@@ -9,8 +9,9 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useMacroContext } from "../context/MacroContext";
 import { useAuth } from "../context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,6 +25,7 @@ export default function ProfileScreen() {
     toggleUseGrams,
     darkMode,
     toggleDarkMode,
+    isLoading,
   } = useMacroContext();
   const { logout } = useAuth();
 
@@ -35,8 +37,21 @@ export default function ProfileScreen() {
     fats: macroGoals.fats,
     sugar: macroGoals.sugar,
   });
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSaveGoals = useCallback(() => {
+  // Update form values when macroGoals changes (e.g., on initial load)
+  useEffect(() => {
+    if (!isLoading) {
+      setFormValues({
+        protein: macroGoals.protein,
+        carbs: macroGoals.carbs,
+        fats: macroGoals.fats,
+        sugar: macroGoals.sugar,
+      });
+    }
+  }, [macroGoals, isLoading]);
+
+  const handleSaveGoals = useCallback(async () => {
     // Validate numeric inputs
     const numericFields = ["protein", "carbs", "fats", "sugar"];
     const isValid = numericFields.every(
@@ -51,8 +66,18 @@ export default function ProfileScreen() {
       return;
     }
 
-    updateMacroGoals(formValues);
-    Alert.alert("Success", "Your macro goals have been updated!");
+    try {
+      setIsSaving(true);
+      await updateMacroGoals(formValues);
+      Alert.alert("Success", "Your macro goals have been updated!");
+    } catch (error) {
+      Alert.alert(
+        "Error",
+        "Failed to save your macro goals. Please try again."
+      );
+    } finally {
+      setIsSaving(false);
+    }
   }, [formValues, updateMacroGoals]);
 
   const handlePasswordUpdate = useCallback(() => {
@@ -78,6 +103,33 @@ export default function ProfileScreen() {
       Alert.alert("Error", "Failed to logout. Please try again.");
     }
   };
+
+  if (isLoading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: darkMode ? "#121212" : "#f5f5f5",
+        }}
+      >
+        <ActivityIndicator
+          size="large"
+          color={darkMode ? "#60a5fa" : "#3b82f6"}
+        />
+        <Text
+          style={{
+            marginTop: 16,
+            color: darkMode ? "#ffffff" : "#000000",
+            fontSize: 16,
+          }}
+        >
+          Loading your profile...
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -225,11 +277,18 @@ export default function ProfileScreen() {
             </View>
 
             <TouchableOpacity
-              className="bg-blue-500 rounded-lg py-3 items-center"
+              className={`${
+                isSaving ? "bg-blue-400" : "bg-blue-500"
+              } rounded-lg py-3 items-center`}
               onPress={handleSaveGoals}
               activeOpacity={0.8}
+              disabled={isSaving}
             >
-              <Text className="text-white font-medium">Save Goals</Text>
+              {isSaving ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <Text className="text-white font-medium">Save Goals</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>

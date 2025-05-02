@@ -14,6 +14,7 @@ import * as FileSystem from "expo-file-system";
 import { Buffer } from "buffer";
 import { DatabaseService } from "../../services/database";
 import { NutritionData } from "../../types/nutrition";
+import { useIsFocused } from "@react-navigation/native";
 
 interface PhotoData {
   uri: string;
@@ -55,6 +56,9 @@ export default function App() {
   );
   const [error, setError] = useState<string | null>(null);
   const [serverAvailable, setServerAvailable] = useState<boolean>(false);
+
+  // Check if the screen is focused (visible to the user)
+  const isFocused = useIsFocused();
 
   // Check if the Python server is running
   useEffect(() => {
@@ -115,6 +119,11 @@ export default function App() {
         <Button onPress={requestPermission} title="grant permission" />
       </View>
     );
+  }
+
+  // Show a blank view if not focused
+  if (!isFocused) {
+    return <View style={styles.container} />;
   }
 
   function toggleCameraFacing() {
@@ -199,9 +208,9 @@ export default function App() {
           `Successfully processed ${responseData.foodItem.name}`
         );
 
-        // Save to database
+        // Save to database with current date
         const db = DatabaseService.getInstance();
-        await db.saveFoodEntry(responseData, "current-user-id");
+        await db.saveFoodEntry(responseData, new Date());
       } catch (error: any) {
         console.error("Error taking picture:", error);
         setLastPacketInfo(`Error: ${error.message}`);

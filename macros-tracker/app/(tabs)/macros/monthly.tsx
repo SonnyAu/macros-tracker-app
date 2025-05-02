@@ -72,10 +72,15 @@ export default function MonthlyMacrosScreen() {
               textDayHeaderFontSize: 14,
             }}
             onDayPress={(day: DateData) => {
-              router.push({
-                pathname: "/(tabs)/macros/[date]",
-                params: { date: day.dateString },
-              });
+              // Go back to the weekly view first
+              router.back();
+              // After a small delay, navigate to the day detail view
+              setTimeout(() => {
+                router.push({
+                  pathname: "/(tabs)/macros/day/[date]",
+                  params: { date: day.dateString },
+                });
+              }, 100);
             }}
           />
         </View>
