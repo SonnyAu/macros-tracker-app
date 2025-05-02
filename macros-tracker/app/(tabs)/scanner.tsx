@@ -8,6 +8,7 @@ import {
   View,
   Platform,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import * as FileSystem from "expo-file-system";
 import { Buffer } from "buffer";
@@ -53,6 +54,36 @@ export default function App() {
     null
   );
   const [error, setError] = useState<string | null>(null);
+  const [serverAvailable, setServerAvailable] = useState<boolean>(false);
+
+  // Check if the Python server is running
+  useEffect(() => {
+    const checkServer = async () => {
+      try {
+        const response = await fetch("http://127.0.0.1:8080", {
+          method: "OPTIONS",
+        });
+        setServerAvailable(response.ok);
+      } catch (err) {
+        console.warn("Python server not detected:", err);
+        setServerAvailable(false);
+
+        // Show alert only in development
+        if (__DEV__) {
+          Alert.alert(
+            "Python Server Not Detected",
+            "The Python server for food recognition doesn't seem to be running. Please start it with 'npm run start-server' in another terminal.",
+            [{ text: "OK" }]
+          );
+        }
+      }
+    };
+
+    checkServer();
+    // Check server availability every 30 seconds
+    const interval = setInterval(checkServer, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Initialize database connection
   useEffect(() => {
@@ -97,6 +128,13 @@ export default function App() {
         setNutritionData(null);
         setError(null);
 
+        // Check if the server is available first
+        if (!serverAvailable) {
+          throw new Error(
+            "Python server not available. Please start it with 'npm run start-server'"
+          );
+        }
+
         // Request base64 data directly
         const photo = (await cameraRef.current.takePictureAsync({
           base64: true,
@@ -126,7 +164,7 @@ export default function App() {
           imageData = `data:image/jpeg;base64,${imageData}`;
         }
 
-        // Send the image data directly
+        // Send the image data to our Python server
         const response = await fetch(`http://127.0.0.1:8080`, {
           method: "POST",
           headers: {
@@ -226,18 +264,30 @@ export default function App() {
           <TouchableOpacity
             style={[
               styles.captureButton,
-              isProcessing && styles.captureButtonDisabled,
+              (isProcessing || !serverAvailable) &&
+                styles.captureButtonDisabled,
             ]}
             onPress={takePicture}
-            disabled={isProcessing}
+            disabled={isProcessing || !serverAvailable}
           >
             {isProcessing ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text style={styles.text}>Take Picture</Text>
+              <Text style={styles.text}>
+                {serverAvailable ? "Take Picture" : "Server Offline"}
+              </Text>
             )}
           </TouchableOpacity>
         </View>
+
+        {!serverAvailable && (
+          <View style={styles.serverStatusContainer}>
+            <Text style={styles.errorText}>
+              Python server not available. Use 'npm run start-server' to start
+              it.
+            </Text>
+          </View>
+        )}
 
         {error && (
           <View style={styles.errorContainer}>
@@ -339,6 +389,15 @@ const styles = StyleSheet.create({
   errorText: {
     color: "white",
     textAlign: "center",
+  },
+  serverStatusContainer: {
+    position: "absolute",
+    top: 80,
+    left: 20,
+    right: 20,
+    backgroundColor: "rgba(255, 165, 0, 0.7)",
+    padding: 10,
+    borderRadius: 5,
   },
   nutritionContainer: {
     position: "absolute",
