@@ -407,9 +407,8 @@ export default function WeeklyMacrosScreen() {
       >
         <View className="flex-row justify-between items-center mb-4">
           <Text
-            className={`font-semibold text-lg ${
-              darkMode ? "text-white" : "text-black"
-            }`}
+            style={{ color: darkMode ? "#FFFFFF" : "#000000" }}
+            className="font-semibold text-lg"
           >
             Daily Macros
           </Text>
@@ -469,9 +468,8 @@ export default function WeeklyMacrosScreen() {
         } rounded-2xl p-4 mb-6 shadow-sm`}
       >
         <Text
-          className={`font-semibold text-lg mb-4 ${
-            darkMode ? "text-white" : "text-black"
-          }`}
+          style={{ color: darkMode ? "#FFFFFF" : "#000000" }}
+          className="font-semibold text-lg mb-4"
         >
           Weekly Progress
         </Text>
@@ -597,9 +595,8 @@ export default function WeeklyMacrosScreen() {
         } rounded-2xl p-4 shadow-sm mb-6`}
       >
         <Text
-          className={`font-semibold text-lg mb-4 ${
-            darkMode ? "text-white" : "text-black"
-          }`}
+          style={{ color: darkMode ? "#FFFFFF" : "#000000" }}
+          className="font-semibold text-lg mb-4"
         >
           Recently Added
         </Text>

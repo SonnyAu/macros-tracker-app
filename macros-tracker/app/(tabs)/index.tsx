@@ -433,12 +433,12 @@ export default function HomeScreen() {
                   darkMode ? "text-white" : "text-gray-900"
                 } text-lg font-semibold`}
               >
-                Log Meal
+                Meal History
               </Text>
               <Text
                 className={`${darkMode ? "text-gray-400" : "text-gray-500"}`}
               >
-                Track your food intake
+                Check your macros intake
               </Text>
             </View>
           </TouchableOpacity>

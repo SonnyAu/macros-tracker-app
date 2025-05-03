@@ -587,52 +587,54 @@ export default function ProfileScreen() {
           </View>
 
           <View className="p-4">
-            <View className="flex-row justify-between items-center mb-4">
-              <View className="flex-row items-center">
-                <Ionicons
-                  name={useGrams ? "speedometer" : "scale"}
-                  size={18}
-                  color={darkMode ? "#60a5fa" : "#3b82f6"}
+            <View className="flex mb-4">
+              <View className="flex-row justify-between items-center p-2">
+                <View className="flex-row items-center">
+                  <Ionicons
+                    name={useGrams ? "speedometer" : "scale"}
+                    size={18}
+                    color={darkMode ? "#60a5fa" : "#3b82f6"}
+                  />
+                  <Text
+                    className={`ml-2 ${
+                      darkMode ? "text-white" : "text-gray-800"
+                    }`}
+                  >
+                    Units: {useGrams ? "Grams (g)" : "Ounces (oz)"}
+                  </Text>
+                </View>
+                <Switch
+                  value={useGrams}
+                  onValueChange={handleUseGramsToggle}
+                  trackColor={{ false: "#767577", true: "#81b0ff" }}
+                  thumbColor={useGrams ? "#3b82f6" : "#f4f3f4"}
+                  ios_backgroundColor="#3e3e3e"
                 />
-                <Text
-                  className={`ml-2 ${
-                    darkMode ? "text-white" : "text-gray-800"
-                  }`}
-                >
-                  Use Grams (g)
-                </Text>
               </View>
-              <Switch
-                value={useGrams}
-                onValueChange={handleUseGramsToggle}
-                trackColor={{ false: "#767577", true: "#81b0ff" }}
-                thumbColor={useGrams ? "#3b82f6" : "#f4f3f4"}
-                ios_backgroundColor="#3e3e3e"
-              />
-            </View>
 
-            <View className="flex-row justify-between items-center">
-              <View className="flex-row items-center">
-                <Ionicons
-                  name={darkMode ? "moon" : "sunny"}
-                  size={18}
-                  color={darkMode ? "#60a5fa" : "#3b82f6"}
+              <View className="flex-row justify-between items-center p-2">
+                <View className="flex-row items-center">
+                  <Ionicons
+                    name={darkMode ? "moon" : "sunny"}
+                    size={18}
+                    color={darkMode ? "#60a5fa" : "#3b82f6"}
+                  />
+                  <Text
+                    className={`ml-2 ${
+                      darkMode ? "text-white" : "text-gray-800"
+                    }`}
+                  >
+                    Dark Mode
+                  </Text>
+                </View>
+                <Switch
+                  value={darkMode}
+                  onValueChange={handleDarkModeToggle}
+                  trackColor={{ false: "#767577", true: "#81b0ff" }}
+                  thumbColor={darkMode ? "#3b82f6" : "#f4f3f4"}
+                  ios_backgroundColor="#3e3e3e"
                 />
-                <Text
-                  className={`ml-2 ${
-                    darkMode ? "text-white" : "text-gray-800"
-                  }`}
-                >
-                  Dark Mode
-                </Text>
               </View>
-              <Switch
-                value={darkMode}
-                onValueChange={handleDarkModeToggle}
-                trackColor={{ false: "#767577", true: "#81b0ff" }}
-                thumbColor={darkMode ? "#3b82f6" : "#f4f3f4"}
-                ios_backgroundColor="#3e3e3e"
-              />
             </View>
           </View>
         </View>
